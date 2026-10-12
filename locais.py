@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 """Integração com o Geoapify: endereços, busca de lugares e link para o Google Maps."""
 
 import os
@@ -41,19 +43,30 @@ def _chave() -> str:
     return chave
 
 
-def geocodificar(endereco: str) -> Coordenada | None:
-    """Converte um endereço ou bairro em (latitude, longitude). Retorna None se não encontrar."""
-    resposta = requests.get(
-        URL_GEOCODE,
-        params={"text": endereco, "lang": "pt", "limit": 1, "format": "json", "apiKey": _chave()},
-        timeout=TIMEOUT,
-    )
+RAIO_BUSCA_ENDERECO_KM = 60
+
+
+@dataclass
+class Local:
+    coordenada: Coordenada
+    endereco: str   # endereço como o serviço entendeu, para mostrar ao usuário
+
+
+def geocodificar(endereco: str, perto_de: Coordenada | None = None) -> Local | None:
+    """Converte um endereço em coordenadas. Com `perto_de`, só aceita resultados próximos desse ponto."""
+    params = {"text": endereco, "lang": "pt", "limit": 1, "format": "json", "apiKey": _chave()}
+    if perto_de:
+        lat, lon = perto_de
+        params["filter"] = f"circle:{lon},{lat},{RAIO_BUSCA_ENDERECO_KM * 1000}"
+        params["bias"] = f"proximity:{lon},{lat}"
+
+    resposta = requests.get(URL_GEOCODE, params=params, timeout=TIMEOUT)
     resposta.raise_for_status()
     resultados = resposta.json().get("results", [])
     if not resultados:
         return None
-    return resultados[0]["lat"], resultados[0]["lon"]
-
+    r = resultados[0]
+    return Local(coordenada=(r["lat"], r["lon"]), endereco=r.get("formatted", endereco))
 
 def converter_lugar(feature: dict) -> Lugar | None:
     """Transforma um item da resposta do Geoapify em Lugar. Ignora lugares sem nome."""
