@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 """Regras de decisão do Vamo?: distância, ponto central e pontuação justa."""
 
 from math import asin, cos, radians, sin, sqrt
@@ -22,3 +24,44 @@ def ponto_central(pontos: list[Coordenada]) -> Coordenada:
     latitudes = [lat for lat, _ in pontos]
     longitudes = [lon for _, lon in pontos]
     return sum(latitudes) / len(pontos), sum(longitudes) / len(pontos)
+
+RESTRICOES = {
+    "vegetariano": "Vegetariano",
+    "vegano": "Vegano",
+    "sem_gluten": "Sem glúten",
+}
+
+# Uma dieta confirmada no mapa também atende a estas outras
+ATENDE_TAMBEM = {
+    "vegano": {"vegetariano"},
+}
+
+
+@dataclass
+class Amigo:
+    nome: str
+    origem: Coordenada
+    restricoes: set[str] = field(default_factory=set)
+    vibe: str = "tranquilo"
+
+
+@dataclass
+class Lugar:
+    nome: str
+    coordenada: Coordenada
+    categoria: str
+    dietas: set[str] = field(default_factory=set)  # dietas confirmadas no mapa
+    endereco: str = ""
+
+
+def restricoes_do_grupo(amigos: list[Amigo]) -> set[str]:
+    """Todas as restrições do grupo juntas: se uma pessoa precisa, o grupo precisa."""
+    return set().union(*(a.restricoes for a in amigos))
+
+
+def verificar_restricoes(lugar: Lugar, restricoes: set[str]) -> tuple[set[str], set[str]]:
+    """Separa as restrições em (confirmadas no mapa, sem informação)."""
+    atendidas = set(lugar.dietas)
+    for dieta in lugar.dietas:
+        atendidas |= ATENDE_TAMBEM.get(dieta, set())
+    return restricoes & atendidas, restricoes - atendidas
