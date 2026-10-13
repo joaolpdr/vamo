@@ -1,9 +1,10 @@
+from datetime import datetime
+
 import pytest
-from decisao import Amigo, Lugar, distancia_km, ponto_central, restricoes_do_grupo, verificar_restricoes
-from decisao import distancia_km, ponto_central
+
 from decisao import (
     Amigo, Lugar, distancia_km, nota_do_grupo, ponto_central, pontuar,
-    ranquear, restricoes_do_grupo, verificar_restricoes,
+    ranquear, restricoes_do_grupo, situacao_horario, verificar_restricoes,
 )
 
 
@@ -78,3 +79,41 @@ def test_resultado_aponta_quem_ficou_menos_satisfeito():
     grupo = [Amigo("Ana", origem=(0, 0)), Amigo("Bruno", origem=(0, 0.08))]
     resultado = pontuar(Lugar("Perto da Ana", coordenada=(0, 0), categoria="restaurante"), grupo)
     assert resultado.menos_satisfeito == "Bruno"
+
+# --- Horário ---
+
+SABADO_20H = datetime(2026, 10, 17, 20, 0)
+DOMINGO_1H = datetime(2026, 10, 18, 1, 0)
+SEGUNDA_15H = datetime(2026, 10, 19, 15, 0)
+
+
+def lugar_com_horario(horario):
+    return Lugar("Bar", coordenada=(0, 0), categoria="bar", horario=horario)
+
+
+def test_lugar_aberto_no_horario_escolhido():
+    assert situacao_horario(lugar_com_horario("Mo-Sa 18:00-23:00"), SABADO_20H) == "aberto"
+
+
+def test_lugar_fechado_no_horario_escolhido():
+    assert situacao_horario(lugar_com_horario("Mo-Sa 18:00-23:00"), SEGUNDA_15H) == "fechado"
+
+
+def test_horario_que_passa_da_meia_noite():
+    assert situacao_horario(lugar_com_horario("Sa 18:00-02:00"), DOMINGO_1H) == "aberto"
+
+
+def test_sem_horario_no_mapa_fica_sem_informacao():
+    assert situacao_horario(lugar_com_horario(""), SABADO_20H) == "sem_informacao"
+
+
+def test_horario_em_formato_invalido_fica_sem_informacao():
+    assert situacao_horario(lugar_com_horario("abre quando o dono quiser"), SABADO_20H) == "sem_informacao"
+
+
+def test_ranking_remove_lugares_fechados():
+    grupo = [Amigo("Ana", origem=(0, 0))]
+    aberto = Lugar("Aberto", coordenada=(0, 0.01), categoria="bar", horario="Mo-Su 18:00-23:00")
+    fechado = Lugar("Fechado", coordenada=(0, 0.01), categoria="bar", horario="Mo-Su 08:00-12:00")
+    nomes = [r.lugar.nome for r in ranquear([aberto, fechado], grupo, quando=SABADO_20H)]
+    assert nomes == ["Aberto"]

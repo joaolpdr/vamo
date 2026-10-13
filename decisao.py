@@ -1,4 +1,7 @@
 from dataclasses import dataclass, field
+from datetime import datetime
+
+from opening_hours import OpeningHours
 
 """Regras de decisão do Vamo?: distância, ponto central e pontuação justa."""
 
@@ -44,7 +47,6 @@ class Amigo:
     restricoes: set[str] = field(default_factory=set)
     vibe: str = "tranquilo"
 
-
 @dataclass
 class Lugar:
     nome: str
@@ -53,6 +55,7 @@ class Lugar:
     dietas: set[str] = field(default_factory=set)  # dietas confirmadas no mapa
     endereco: str = ""
     vibe: str = "tranquilo"
+    horario: str = ""   # horário no formato do OpenStreetMap
 
 def restricoes_do_grupo(amigos: list[Amigo]) -> set[str]:
     """Todas as restrições do grupo juntas: se uma pessoa precisa, o grupo precisa."""
@@ -65,6 +68,17 @@ def verificar_restricoes(lugar: Lugar, restricoes: set[str]) -> tuple[set[str], 
     for dieta in lugar.dietas:
         atendidas |= ATENDE_TAMBEM.get(dieta, set())
     return restricoes & atendidas, restricoes - atendidas
+
+def situacao_horario(lugar: Lugar, quando: datetime) -> str:
+    """'aberto', 'fechado' ou 'sem_informacao' no horário escolhido."""
+    if not lugar.horario:
+        return "sem_informacao"
+    try:
+        estado, _ = OpeningHours(lugar.horario).state(quando)
+    except Exception:   # horário escrito num formato que a biblioteca não entende
+        return "sem_informacao"
+    nome = str(estado).split(".")[-1].lower()
+    return {"open": "aberto", "closed": "fechado"}.get(nome, "sem_informacao")
 
 # --- Pontuação ---
 
@@ -121,7 +135,38 @@ def pontuar(lugar: Lugar, amigos: list[Amigo]) -> Resultado:
     )
 
 
-def ranquear(lugares: list[Lugar], amigos: list[Amigo], top: int = 5) -> list[Resultado]:
-    """Os melhores lugares para o grupo, do mais justo para o menos justo."""
+def ranquear(
+    lugares: list[Lugar], amigos: list[Amigo], top: int = 5, quando: datetime | None = None
+) -> list[Resultado]:
+    """Os melhores lugares para o grupo. Com `quando`, remove os que o mapa sabe que estão fechados."""
+    if quando:
+        lugares = [l for l in lugares if situacao_horario(l, quando) != "fechado"]
     resultados = [pontuar(lugar, amigos) for lugar in lugares]
     return sorted(resultados, key=lambda r: r.nota, reverse=True)[:top]
+
+# --- Explicação ---
+
+def _juntar(nomes: list[str]) -> str:
+    """['Ana', 'Bruno', 'Carla'] → 'Ana, Bruno e Carla'."""
+    return nomes[0] if len(nomes) == 1 else f"{', '.join(nomes[:-1])} e {nomes[-1]}"
+
+
+def explicar(resultado: Resultado, amigos: list[Amigo]) -> list[str]:
+    """Frases que explicam por que o lugar é justo para o grupo."""
+    frases = []
+
+    quem = max(resultado.distancias_km, key=resultado.distancias_km.get)
+    frases.append(f"Quem vai mais longe é {quem}, com {resultado.distancias_km[quem]:.1f} km.")
+
+    abriram_mao = [a.nome for a in amigos if a.vibe != resultado.lugar.vibe]
+    if not abriram_mao:
+        frases.append("A vibe agrada todo mundo.")
+    else:
+        verbo = "abriu mão" if len(abriram_mao) == 1 else "abriram mão"
+        frases.append(f"{_juntar(abriram_mao)} preferia(m) outra vibe e {verbo} disso.")
+
+    if resultado.confirmadas:
+        frases.append("✅ Confirmado no mapa: " + ", ".join(RESTRICOES[x] for x in sorted(resultado.confirmadas)) + ".")
+    if resultado.sem_informacao:
+        frases.append("⚠️ Confirme com o lugar: " + ", ".join(RESTRICOES[x] for x in sorted(resultado.sem_informacao)) + ".")
+    return frases
