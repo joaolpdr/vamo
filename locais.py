@@ -19,10 +19,12 @@ TIMEOUT = 10
 CATEGORIAS = {
     "restaurante": "catering.restaurant,catering.cafe",
     "bar": "catering.bar,catering.pub,catering.biergarten,catering.taproom",
+    "balada": "adult.nightclub",
 }
 
-CATEGORIAS_AGITADAS = {"catering.bar", "catering.pub", "catering.biergarten", "catering.taproom"}
-
+CATEGORIAS_AGITADAS = {
+    "catering.bar", "catering.pub", "catering.biergarten", "catering.taproom", "adult.nightclub",
+}
 # Etiqueta do OpenStreetMap → restrição do app
 ETIQUETAS_DIETA = {
     "diet:vegetarian": "vegetariano",
@@ -71,7 +73,8 @@ def geocodificar(endereco: str, perto_de: Coordenada | None = None) -> Local | N
 def converter_lugar(feature: dict) -> Lugar | None:
     """Transforma um item da resposta do Geoapify em Lugar. Ignora lugares sem nome."""
     props = feature["properties"]
-    if not props.get("name"):
+    if not props.get("name"):        
+        
         return None
 
     categorias = set(props.get("categories", []))
@@ -89,6 +92,7 @@ def converter_lugar(feature: dict) -> Lugar | None:
         dietas=dietas,
         endereco=props.get("formatted", ""),
         vibe="agitado" if categorias & CATEGORIAS_AGITADAS else "tranquilo",
+        horario=raw.get("opening_hours", ""),
     )
 
 

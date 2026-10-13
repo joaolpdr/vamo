@@ -39,3 +39,12 @@ def test_link_do_google_maps_usa_nome_e_endereco():
     link = link_google_maps(lugar)
     assert link.startswith("https://www.google.com/maps/search/?api=1&query=")
     assert "Cantina" in link
+
+def test_le_horario_de_funcionamento_do_mapa():
+    lugar = converter_lugar(feature_falsa(["catering.bar"], raw={"opening_hours": "Mo-Sa 18:00-23:00"}))
+    assert lugar.horario == "Mo-Sa 18:00-23:00"
+
+
+def test_balada_tem_vibe_agitada():
+    lugar = converter_lugar(feature_falsa(["adult", "adult.nightclub"]))
+    assert lugar.vibe == "agitado"
