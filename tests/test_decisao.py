@@ -3,10 +3,9 @@ from datetime import datetime
 import pytest
 
 from decisao import (
-    Amigo, Lugar, distancia_km, nota_do_grupo, ponto_central, pontuar,
+    Amigo, Lugar, distancia_km, explicar, nota_do_grupo, ponto_central, pontuar,
     ranquear, restricoes_do_grupo, situacao_horario, verificar_restricoes,
 )
-
 
 def test_distancia_de_um_ponto_para_ele_mesmo_e_zero():
     assert distancia_km((-25.4387, -49.2871), (-25.4387, -49.2871)) == 0
@@ -117,3 +116,22 @@ def test_ranking_remove_lugares_fechados():
     fechado = Lugar("Fechado", coordenada=(0, 0.01), categoria="bar", horario="Mo-Su 08:00-12:00")
     nomes = [r.lugar.nome for r in ranquear([aberto, fechado], grupo, quando=SABADO_20H)]
     assert nomes == ["Aberto"]
+
+    # --- Explicação ---
+
+def test_explicacao_aponta_quem_vai_mais_longe():
+    grupo = [Amigo("Ana", origem=(0, 0)), Amigo("Bruno", origem=(0, 0.05))]
+    resultado = pontuar(Lugar("Bar", coordenada=(0, 0), categoria="bar"), grupo)
+    assert any("Bruno" in frase and "mais longe" in frase for frase in explicar(resultado, grupo))
+
+
+def test_explicacao_mostra_quem_abriu_mao_da_vibe():
+    grupo = [Amigo("Ana", origem=(0, 0), vibe="agitado"), Amigo("Bruno", origem=(0, 0), vibe="tranquilo")]
+    resultado = pontuar(Lugar("Bar", coordenada=(0, 0), categoria="bar", vibe="agitado"), grupo)
+    assert any("Bruno" in frase and "abriu mão" in frase for frase in explicar(resultado, grupo))
+
+
+def test_explicacao_quando_a_vibe_agrada_todos():
+    grupo = [Amigo("Ana", origem=(0, 0)), Amigo("Bruno", origem=(0, 0))]
+    resultado = pontuar(Lugar("Café", coordenada=(0, 0), categoria="restaurante"), grupo)
+    assert "A vibe agrada todo mundo." in explicar(resultado, grupo)
